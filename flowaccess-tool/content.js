@@ -11,12 +11,27 @@
     // 1. EXTENSION PRESENCE BEACON
     // ========================
 
-    document.documentElement.dataset.flowAccessExtension = 'true';
-    document.documentElement.dataset.flowAccessVersion = chrome.runtime.getManifest().version;
+    // document_start can fire before <html> exists — a blind beacon write
+    // here would throw and kill this whole content script (no beacon AND
+    // no bridge). Wait for documentElement if it isn't there yet.
+    function setBeacon() {
+        try {
+            const el = document.documentElement;
+            if (!el) return false;
+            el.dataset.flowAccessExtension = 'true';
+            el.dataset.flowAccessVersion = chrome.runtime.getManifest().version;
+            window.dispatchEvent(new CustomEvent('FLOW_ACCESS_EXTENSION_READY', {
+                detail: { version: chrome.runtime.getManifest().version }
+            }));
+            return true;
+        } catch (e) { return false; }
+    }
 
-    window.dispatchEvent(new CustomEvent('FLOW_ACCESS_EXTENSION_READY', {
-        detail: { version: chrome.runtime.getManifest().version }
-    }));
+    if (!setBeacon()) {
+        const mo = new MutationObserver(() => { if (setBeacon()) mo.disconnect(); });
+        mo.observe(document, { childList: true, subtree: true });
+        setTimeout(() => mo.disconnect(), 10000); // safety
+    }
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
@@ -39,6 +54,7 @@
         'FETCH_AND_INJECT',
         'WIPE_COOKIES',
         'GET_INJECTED_STATE',
+        'CHECK_GOOGLE_LOGIN',
         'CLEAR_AWAY_WIPE',
         'CLOSE_FLOW_TAB',
         'STOP_FLOW',
@@ -62,7 +78,10 @@
         });
     } catch (e) {}
 
-    const DEFAULT_ORIGINS = ['http://localhost:5500'];
+    // Site access: the extension always trusts the production website plus
+    // the local dev server. Stored dashboardOrigins (from the popup's
+    // Dashboard URL setting) are merged in — they never replace these.
+    const DEFAULT_ORIGINS = ['http://localhost:5500', 'https://flowaccess-phi.vercel.app'];
 
     let allowedOrigins = null;
     function getAllowedOrigins() {
@@ -70,14 +89,13 @@
         return new Promise((resolve) => {
             try {
                 chrome.storage.local.get(['dashboardOrigins'], (r) => {
-                    const list = Array.isArray(r.dashboardOrigins) && r.dashboardOrigins.length
-                        ? r.dashboardOrigins
-                        : DEFAULT_ORIGINS;
+                    const stored = Array.isArray(r.dashboardOrigins) ? r.dashboardOrigins : [];
+                    const list = [...new Set([...DEFAULT_ORIGINS, ...stored])];
                     allowedOrigins = list;
                     resolve(list);
                 });
             } catch (e) {
-                allowedOrigins = DEFAULT_ORIGINS;
+                allowedOrigins = DEFAULT_ORIGINS.slice();
                 resolve(allowedOrigins);
             }
         });
