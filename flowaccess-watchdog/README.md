@@ -1,4 +1,4 @@
-# FlowAccess Watchdog
+# FlowAccess Pro
 
 Companion extension for the main FlowAccess extension. Chrome gives an
 extension no hook for its own uninstall — once removed, zero of its code
