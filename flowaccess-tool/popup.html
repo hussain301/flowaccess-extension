@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      width: 280px; 
+      background: #0a0a0f; 
+      color: #f8fafc; 
+      font-family: 'Segoe UI', sans-serif; 
+      padding: 1.25rem;
+    }
+    .header { 
+      display: flex; 
+      align-items: center; 
+      justify-content: space-between; 
+      margin-bottom: 1rem;
+    }
+    .header h1 { font-size: 1rem; font-weight: 700; }
+    .header h1 span { color: #6366f1; }
+    .version { font-size: 0.65rem; color: #64748b; background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; }
+    
+    .status-list { 
+      background: rgba(255,255,255,0.03); 
+      border: 1px solid rgba(255,255,255,0.08); 
+      border-radius: 10px; 
+      padding: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .status-row { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center;
+      padding: 0.35rem 0;
+    }
+    .status-label { font-size: 0.8rem; color: #94a3b8; }
+    .status-val { font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-green { background: #10b981; }
+    .dot-red { background: #ef4444; }
+    
+    .btn {
+      width: 100%;
+      padding: 0.65rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: #6366f1; color: white; }
+    .btn-primary:hover { background: #4f46e5; }
+    
+    .footer { 
+      text-align: center; 
+      margin-top: 0.75rem;
+      font-size: 0.7rem;
+      color: #475569;
+    }
+
+    .settings { margin-top: 0.9rem; }
+    .settings label { font-size: 0.7rem; color: #94a3b8; display: block; margin-bottom: 4px; }
+    .url-row { display: flex; gap: 6px; }
+    #dashUrl {
+      flex: 1;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      color: #f8fafc;
+      font-size: 0.7rem;
+      padding: 6px 8px;
+      min-width: 0;
+    }
+    #saveUrlBtn {
+      background: rgba(99,102,241,0.2);
+      border: 1px solid rgba(99,102,241,0.4);
+      border-radius: 6px;
+      color: #a5b4fc;
+      cursor: pointer;
+      padding: 0 10px;
+      font-size: 0.85rem;
+    }
+    #saveUrlBtn:hover { background: rgba(99,102,241,0.35); }
+    .hint { font-size: 0.65rem; color: #10b981; margin-top: 4px; min-height: 14px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>⚡ Flow<span>Access</span></h1>
+    <span class="version" id="version">v1.0</span>
+  </div>
+
+  <div class="status-list">
+    <div class="status-row">
+      <span class="status-label">Extension</span>
+      <span class="status-val"><span class="dot dot-green"></span> Active</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Protection</span>
+      <span class="status-val" id="protectionStatus"><span class="dot dot-green"></span> Enabled</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">Session</span>
+      <span class="status-val" id="sessionStatus"><span class="dot dot-red"></span> Inactive</span>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" id="dashBtn">Open Dashboard</button>
+
+  <div class="settings">
+    <label for="dashUrl">Dashboard URL</label>
+    <div class="url-row">
+      <input type="url" id="dashUrl" placeholder="https://your-site.com/website/dashboard.html" spellcheck="false">
+      <button id="saveUrlBtn" title="Save">✓</button>
+    </div>
+    <div class="hint" id="urlHint"></div>
+  </div>
+  
+  <div class="footer">FlowAccess Tool — Secure Access</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
