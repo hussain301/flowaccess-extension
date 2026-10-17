@@ -162,8 +162,9 @@ async function resetInjectedCookies(list) {
 }
 
 // Remove ONLY the cookies we injected. Returns the count removed.
-// Sets the faAwayWipe flag so the dashboard can auto-pause immediately.
-async function wipeInjectedCookies() {
+// Sets the faAwayWipe flag so the dashboard can auto-pause immediately
+// (pass false when the caller raises its own flag instead).
+async function wipeInjectedCookies(setAwayFlag = true) {
     const list = await getInjectedCookies();
     if (!list.length) return 0;
     let removed = 0;
@@ -177,7 +178,9 @@ async function wipeInjectedCookies() {
     }
     try {
         await chrome.storage.local.remove([FA_INJECTED_KEY]);
-        await chrome.storage.local.set({ [FA_AWAY_WIPE_KEY]: { at: Date.now(), removed } });
+        if (setAwayFlag) {
+            await chrome.storage.local.set({ [FA_AWAY_WIPE_KEY]: { at: Date.now(), removed } });
+        }
     } catch (e) {}
     console.log(`[FlowAccess] Away-wipe: removed ${removed}/${list.length} injected cookies`);
     return removed;
@@ -596,6 +599,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
+    // Dashboard acknowledges the new-tab end-session push — clear the one-shot flag.
+    if (request.action === 'CLEAR_NEW_TAB_END') {
+        (async () => {
+            try { await chrome.storage.local.remove([FA_NEW_TAB_END_KEY]); } catch (e) {}
+            sendResponse({ success: true });
+        })();
+        return true;
+    }
+
     // Close all Flow tabs (for pause/expire)
     if (request.action === 'CLOSE_FLOW_TAB') {
         closeFlowTabs();
@@ -778,6 +790,7 @@ async function clearProjectHistory() {
 
 // Hosts where an active session may live. Everything else counts as "away".
 const FA_ALLOWED_HOSTS = ['flow.google.com'];
+const FA_NEW_TAB_END_KEY = 'faNewTabEnd';
 
 function isAwayUrl(url) {
     if (!url || typeof url !== 'string') return false;
@@ -789,14 +802,38 @@ function isAwayUrl(url) {
     }
 }
 
+// Chrome's default start page (new tab page). Navigating here ENDS the
+// active session outright (not just a pause) — the user walked away.
+function isNewTabUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    return /^(chrome|edge):\/\/(newtab|new-tab-page)\/?/i.test(url);
+}
+
 async function handleTabNavigation(url) {
     if (!isAwayUrl(url)) return;
     await wipeInjectedCookies(); // no-op when nothing was injected
 }
 
+// New-tab navigation: wipe the injected cookies and flag the dashboard
+// to END the session (no-op when no session is active).
+async function handleNewTabNavigation(url) {
+    if (!isNewTabUrl(url)) return;
+    const list = await getInjectedCookies();
+    if (!list.length) return; // no active session — nothing to end
+    await wipeInjectedCookies(false); // no away-wipe flag; we raise our own below
+    try {
+        await chrome.storage.local.set({ [FA_NEW_TAB_END_KEY]: { at: Date.now() } });
+    } catch (e) {}
+    console.log('[FlowAccess] New-tab navigation: session end flagged');
+}
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     const url = (tab && (tab.url || tab.pendingUrl)) || (changeInfo && changeInfo.url);
-    handleTabNavigation(url).catch(() => {});
+    if (isNewTabUrl(url)) {
+        handleNewTabNavigation(url).catch(() => {});
+    } else {
+        handleTabNavigation(url).catch(() => {});
+    }
 
     if (url && isFlowUrl(url)) {
         enforceSingleFlowTab();
@@ -806,7 +843,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.tabs.onCreated.addListener((tab) => {
     if (tab) {
         const url = tab.url || tab.pendingUrl;
-        handleTabNavigation(url).catch(() => {});
+        if (isNewTabUrl(url)) {
+            handleNewTabNavigation(url).catch(() => {});
+        } else {
+            handleTabNavigation(url).catch(() => {});
+        }
     }
 });
 

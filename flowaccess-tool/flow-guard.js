@@ -566,25 +566,43 @@
     const FA_TARGET_HINT = 'lower priority';
     const FA_MODEL_HINTS = ['omni 1.1 flash', 'veo 3.1 - lite', 'veo 3.1 - fast', 'veo 3.1 - quality'];
 
-    function faNorm(t) { return (t || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+    function faNorm(t) {
+        return (t || '').replace(/[\u2013\u2014\u2212]/g, '-').replace(/\s+/g, ' ').trim().toLowerCase();
+    }
+
+    function faIsTargetText(t) {
+        if (!t) return false;
+        if (t.indexOf(FA_TARGET_HINT) !== -1) return true;
+        return t.indexOf('veo') !== -1 && t.indexOf('lite') !== -1;
+    }
 
     function faIsOtherModelButton(btn) {
         const t = faNorm(btn.textContent);
-        if (!t || t.indexOf(FA_TARGET_HINT) !== -1) return false;
+        if (!t || faIsTargetText(t)) return false;
         if (btn.closest('flow-menu-item')) return true; // the model menu's own items
         return FA_MODEL_HINTS.some(h => t.indexOf(h) !== -1);
     }
 
-    // Target item: text match first, 5th menu item as fallback (user's XPath).
+    // Target item: text match first, veo+lite combo as fallback (the
+    // "Lower Priority" badge sometimes renders outside the button text),
+    // 5th menu item as last resort (user's XPath).
     function faFindTargetItem() {
         const items = document.querySelectorAll('flow-menu-item button');
         for (const b of items) {
             if (faNorm(b.textContent).indexOf(FA_TARGET_HINT) !== -1) return b;
         }
+        for (const b of items) {
+            const t = faNorm(b.textContent);
+            if (t.indexOf('veo') !== -1 && t.indexOf('lite') !== -1) return b;
+        }
         if (items.length >= 5) return items[4]; // flow-menu-item[5]
         const any = document.querySelectorAll(FA_MODEL_BTN_SEL);
         for (const b of any) {
             if (faNorm(b.textContent).indexOf(FA_TARGET_HINT) !== -1) return b;
+        }
+        for (const b of any) {
+            const t = faNorm(b.textContent);
+            if (t.indexOf('veo') !== -1 && t.indexOf('lite') !== -1) return b;
         }
         return null;
     }
@@ -664,7 +682,28 @@
         }, 200);
     }
 
+    // Persistent light watch: every 10s, if the model trigger shows a
+    // non-target model and no menu is open, auto-switch back to the target.
+    // Covers slow SPA boot, SPA re-renders, and any missed switches.
+    function faLightWatch() {
+        if (window.__faLightWatch) return;
+        window.__faLightWatch = true;
+        setInterval(() => {
+            try {
+                const trig = faModelTrigger();
+                if (!trig) return;
+                const t = faNorm(trig.textContent);
+                if (!t || faIsTargetText(t)) return; // already correct or unknown
+                // Don't fight the user while a menu is open (the interceptor handles picks).
+                if (document.querySelector('.cdk-overlay-container .mat-mdc-menu-content, .cdk-overlay-container flow-menu-item')) return;
+                faOpenAndPickTarget();
+            } catch (e) {}
+        }, 10000);
+    }
+
     // On page load: make sure the target model ends up selected.
+    // Retries for up to 3 minutes (heavy SPA boot on slow connections),
+    // then hands over to the persistent light watch.
     function faEnsureTargetOnLoad() {
         if (window.__faEnsure) return;
         window.__faEnsure = true;
@@ -677,18 +716,20 @@
                 cur = trig ? faNorm(trig.textContent) : null;
                 menuOpen = !!faFindTargetItem();
             } catch (e) {}
-            if (cur && cur.indexOf(FA_TARGET_HINT) !== -1) { clearInterval(iv); return; } // already correct
+            if (cur && faIsTargetText(cur)) { clearInterval(iv); faLightWatch(); return; } // already correct
             if (menuOpen) {
                 // Menu is already open: pick the target directly.
                 clearInterval(iv);
                 let target = null;
                 try { target = faFindTargetItem(); } catch (e) {}
                 if (target) { try { target.click(); } catch (e) {} }
+                faLightWatch();
                 return;
             }
-            if (!cur) { if (tries >= 15) clearInterval(iv); return; } // trigger not rendered yet
+            if (!cur) { if (tries >= 180) { clearInterval(iv); faLightWatch(); } return; } // trigger not rendered yet
             clearInterval(iv);
             faOpenAndPickTarget();
+            faLightWatch();
         }, 1000);
     }
 

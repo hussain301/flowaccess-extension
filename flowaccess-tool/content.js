@@ -56,6 +56,7 @@
         'GET_INJECTED_STATE',
         'CHECK_GOOGLE_LOGIN',
         'CLEAR_AWAY_WIPE',
+        'CLEAR_NEW_TAB_END',
         'CLOSE_FLOW_TAB',
         'STOP_FLOW',
         'GET_SAVED_PROJECTS',
@@ -71,10 +72,16 @@
     // Away-wipe push: when the background wipes the injected cookies
     // (user navigated away from Flow), it sets the faAwayWipe flag.
     // Forward it to the page immediately so the dashboard auto-pauses.
+    // faNewTabEnd: the user hit the new-tab page — the dashboard ENDS the session.
     try {
         chrome.storage.onChanged.addListener((changes, area) => {
-            if (area !== 'local' || !changes.faAwayWipe || !changes.faAwayWipe.newValue) return;
-            window.postMessage({ source: 'FLOW_ACCESS_EVENT', event: 'AWAY_WIPE' }, '*');
+            if (area !== 'local') return;
+            if (changes.faAwayWipe && changes.faAwayWipe.newValue) {
+                window.postMessage({ source: 'FLOW_ACCESS_EVENT', event: 'AWAY_WIPE' }, '*');
+            }
+            if (changes.faNewTabEnd && changes.faNewTabEnd.newValue) {
+                window.postMessage({ source: 'FLOW_ACCESS_EVENT', event: 'NEW_TAB_END' }, '*');
+            }
         });
     } catch (e) {}
 
